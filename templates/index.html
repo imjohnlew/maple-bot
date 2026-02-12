@@ -172,6 +172,12 @@
                 <label>Potion Interval</label>
                 <input type="number" step="0.5" id="POTION_INTERVAL">
             </div>
+            <div class="form-group">
+                <label>Image Check Interval</label>
+                <input type="number" step="1.0" id="LIE_CHECK_INTERVAL">
+            </div>
+            <div class="note" style="margin-top:-10px; margin-bottom: 5px;">How often (seconds) to scan for Lie Detector
+                image. Higher = Less CPU usage.</div>
         </div>
 
         <div class="section">
@@ -274,6 +280,7 @@
                 // Fill basic fields
                 document.getElementById('SHIFT_INTERVAL').value = data.SHIFT_INTERVAL;
                 document.getElementById('POTION_INTERVAL').value = data.POTION_INTERVAL;
+                document.getElementById('LIE_CHECK_INTERVAL').value = data.LIE_CHECK_INTERVAL || 5.0;
                 document.getElementById('WALK_TOLERANCE').value = data.WALK_TOLERANCE;
                 document.getElementById('GAME_WINDOW_NAME').value = data.GAME_WINDOW_NAME || "MapleStory";
                 document.getElementById('AUTO_FOCUS_GAME').checked = data.AUTO_FOCUS_GAME !== false; // Default true
@@ -310,6 +317,7 @@
             // Update values
             newConfig.SHIFT_INTERVAL = parseFloat(document.getElementById('SHIFT_INTERVAL').value);
             newConfig.POTION_INTERVAL = parseFloat(document.getElementById('POTION_INTERVAL').value);
+            newConfig.LIE_CHECK_INTERVAL = parseFloat(document.getElementById('LIE_CHECK_INTERVAL').value);
             newConfig.WALK_TOLERANCE = parseInt(document.getElementById('WALK_TOLERANCE').value);
             newConfig.GAME_WINDOW_NAME = document.getElementById('GAME_WINDOW_NAME').value;
             newConfig.AUTO_FOCUS_GAME = document.getElementById('AUTO_FOCUS_GAME').checked;

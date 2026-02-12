@@ -29,7 +29,8 @@ DEFAULTS = {
         "TOGGLE_MODE": "9"
     },
     "GAME_WINDOW_NAME": "MapleStory",
-    "AUTO_FOCUS_GAME": True
+    "AUTO_FOCUS_GAME": True,
+    "LIE_CHECK_INTERVAL": 5.0
 }
 
 def load_config():

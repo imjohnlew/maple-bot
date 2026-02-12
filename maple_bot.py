@@ -43,6 +43,7 @@ MP_CHECK_POINT = None
 LIE_DETECTOR_POINT = None # New
 POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
 AUTO_FOCUS_GAME = True
+LIE_CHECK_INTERVAL = 5.0
 
 # System Keys Defaults
 SYSTEM_KEYS = {
@@ -78,7 +79,8 @@ def save_config():
         'KEYS': KEYS,
         'SYSTEM_KEYS': SYSTEM_KEYS,
         'GAME_WINDOW_NAME': GAME_WINDOW_NAME,
-        'AUTO_FOCUS_GAME': AUTO_FOCUS_GAME
+        'AUTO_FOCUS_GAME': AUTO_FOCUS_GAME,
+        'LIE_CHECK_INTERVAL': LIE_CHECK_INTERVAL
     }
     try:
         with open(CONFIG_FILE, 'w') as f:
@@ -92,7 +94,7 @@ import subprocess
 
 def load_config():
     global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, LIE_DETECTOR_POINT
-    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS, GAME_WINDOW_NAME, AUTO_FOCUS_GAME
+    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS, GAME_WINDOW_NAME, AUTO_FOCUS_GAME, LIE_CHECK_INTERVAL
     
     if os.path.exists(CONFIG_FILE):
         try:
@@ -123,6 +125,7 @@ def load_config():
                 # App Focus
                 GAME_WINDOW_NAME = data.get('GAME_WINDOW_NAME', "MapleStory")
                 AUTO_FOCUS_GAME = data.get('AUTO_FOCUS_GAME', True)
+                LIE_CHECK_INTERVAL = float(data.get('LIE_CHECK_INTERVAL', 5.0))
 
             print(f"[Config] Loaded: Minimap={bool(MINIMAP_REGION)}, HomeX={HOME_X}")
             print(f"[Config] Intervals: Shift={SHIFT_INTERVAL}s, Potion={POTION_INTERVAL}s")
@@ -275,21 +278,43 @@ def on_press(key):
 
         # Set Lie Detector Check Point
         if key_str == SYSTEM_KEYS['SET_LIE']:
-            x, y = pyautogui.position()
             try:
-                px = pyautogui.screenshot(region=(x, y, 1, 1))
-                color = px.getpixel((0, 0))
-                LIE_DETECTOR_POINT = (x, y, color)
-                print(f"[Lie Detector] Set at ({x}, {y}) Color: {color}")
-                print(" -> Logic: Checks if this color APPEARS (Exact match).")
-                save_config()
+                x, y = pyautogui.position()
+                
+                # Check current state
+                if 'LIE_CAPTURE_START' not in globals() or globals()['LIE_CAPTURE_START'] is None:
+                    globals()['LIE_CAPTURE_START'] = (x, y)
+                    print(f"[Lie Setup] Start Point Set: ({x}, {y}). NOW Move mouse to Bottom-Right & Press {SYSTEM_KEYS['SET_LIE']} again.")
+                else:
+                    x1, y1 = globals()['LIE_CAPTURE_START']
+                    # Calculate region
+                    left, top = min(x1, x), min(y1, y)
+                    width, height = abs(x - x1), abs(y - y1)
+                    
+                    if width < 10 or height < 10:
+                        print("[Lie Setup] Too small! Try again.")
+                        globals()['LIE_CAPTURE_START'] = None
+                        return
+
+                    # Capture & Save
+                    r_ints = (int(left), int(top), int(width), int(height))
+                    im = pyautogui.screenshot(region=r_ints)
+                    lie_file = "maple_lie_detector.png"
+                    im.save(lie_file)
+                    
+                    LIE_DETECTOR_POINT = r_ints # Store tuple just in case, but rely on file
+                    globals()['LIE_CAPTURE_START'] = None
+                    
+                    print(f"[Lie Setup] CAPTURED & SAVED to '{lie_file}'!")
+                    print(" -> Logic: Will now scan FULL SCREEN for this image.")
+                    print(" -> Tip: Best target is the static 'Type what you see.' header.")
+                    save_config()
+
             except Exception as e:
                 print(f"Error setting Lie Detector: {e}")
 
     except Exception as e:
         print(f"Key Error: {e}")
-
-# ... (imports)
 from pynput.keyboard import Key, Controller
 
 keyboard_controller = Controller()
@@ -338,6 +363,8 @@ def main():
     
     # State for walking
     holding_key = None # 'left' or 'right'
+    
+    last_lie_check = 0
 
     last_config_check = 0
     last_mtime = 0
@@ -388,23 +415,43 @@ def main():
                 pyautogui.press(KEYS['POTION_MP'])
                 last_potion = now
 
-            # 3. Lie Detector Check
-            if LIE_DETECTOR_POINT:
-                # Unpack
+            # 3. Lie Detector Check (Image Search)
+            lie_file = "maple_lie_detector.png"
+            if os.path.exists(lie_file):
+                # Optimization: Only check every N seconds (e.g. 5s)
+                # Lie detectors give plenty of time (30s+), so 5s is safe and saves CPU
+                if now - last_lie_check >= LIE_CHECK_INTERVAL:
+                    last_lie_check = now
+                    try:
+                        # Scan screen for the saved image
+                        # Need opencv-python installed for confidence param (defaults to exact if not)
+                        # Use grayscale=True for speed
+                        position = pyautogui.locateOnScreen(lie_file, confidence=0.8, grayscale=True)
+                        
+                        if position:
+                            print(f"\n[ALARM] LIE DETECTOR FOUND at {position}! Pausing Bot...")
+                            RUNNING = False 
+                            
+                            # Play Sound Alarm (Mac specific)
+                            for _ in range(5):
+                                os.system('afplay /System/Library/Sounds/Glass.aiff')
+                                time.sleep(0.5)
+                            
+                            print(" -> Bot PAUSED. Solve it, then press Start.")
+                    except Exception as e:
+                        # print(f"Lie scan error: {e}")
+                        pass
+            elif LIE_DETECTOR_POINT:
+                # Fallback to old pixel check if no image but point exists (legacy support)
                 lx, ly, l_target_color = LIE_DETECTOR_POINT
                 try:
-                    # Check if the Lie Detector box appeared (Pixel matches what we saved)
-                    if colors_match(pyautogui.pixel(lx, ly), l_target_color, tolerance=5):
-                        print("\n[ALARM] LIE DETECTOR DETECTED! Pausing Bot...")
-                        RUNNING = False 
-                        
-                        # Play Sound Alarm (Mac specific)
-                        # Play 5 times to ensure attention
-                        for _ in range(5):
-                            os.system('afplay /System/Library/Sounds/Glass.aiff')
-                            time.sleep(0.5)
-                        
-                        print(" -> Bot PAUSED. Solve the Captcha, then press F8 to Resume.")
+                    if isinstance(l_target_color, tuple) and len(l_target_color) >= 3:
+                        if pyautogui.onScreen(lx, ly) and colors_match(pyautogui.pixel(lx, ly), l_target_color, tolerance=5):
+                            print("\n[ALARM] LIE DETECTOR (Pixel) DETECTED! Pausing Bot...")
+                            RUNNING = False
+                            for _ in range(5):
+                                os.system('afplay /System/Library/Sounds/Glass.aiff')
+                                time.sleep(0.5)
                 except Exception:
                     pass
 

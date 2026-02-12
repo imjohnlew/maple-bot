@@ -181,6 +181,25 @@
         </div>
 
         <div class="section">
+            <div class="section-title">Attack Sequence</div>
+            <div class="form-group">
+                <label>Auto-Jump Frequency</label>
+                <input type="number" step="1" id="JUMP_FREQUENCY" placeholder="2">
+            </div>
+            <div class="note" style="margin-top:-10px;">If 2, bot jumps every 2nd attack. Set 0 to disable jumping.
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label>Combo Order</label>
+                <select id="ATTACK_ORDER"
+                    style="background: var(--input-bg); color: white; border: 1px solid #565f89; padding: 5px; border-radius: 5px;">
+                    <option value="JUMP_THEN_ATTACK">Jump &rarr; Attack (Flash Jump)</option>
+                    <option value="ATTACK_THEN_JUMP">Attack &rarr; Jump</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section">
             <div class="section-title">Movement</div>
             <div class="form-group">
                 <label>Walk Tolerance (Pixels)</label>
@@ -285,9 +304,14 @@
                 document.getElementById('GAME_WINDOW_NAME').value = data.GAME_WINDOW_NAME || "MapleStory";
                 document.getElementById('AUTO_FOCUS_GAME').checked = data.AUTO_FOCUS_GAME !== false; // Default true
 
+                // Attack Sequence
+                document.getElementById('JUMP_FREQUENCY').value = data.JUMP_FREQUENCY !== undefined ? data.JUMP_FREQUENCY : 2;
+                document.getElementById('ATTACK_ORDER').value = data.ATTACK_ORDER || "JUMP_THEN_ATTACK";
+
                 // Fill Game Keys
                 if (data.KEYS) {
                     document.getElementById('KEY_SHIFT').value = data.KEYS.SHIFT || '';
+                    document.getElementById('KEY_JUMP').value = data.KEYS.JUMP || 'space';
                     document.getElementById('KEY_POTION_HP').value = data.KEYS.POTION_HP || '';
                     document.getElementById('KEY_POTION_MP').value = data.KEYS.POTION_MP || '';
                     document.getElementById('KEY_LEFT').value = data.KEYS.LEFT || '';
@@ -322,9 +346,14 @@
             newConfig.GAME_WINDOW_NAME = document.getElementById('GAME_WINDOW_NAME').value;
             newConfig.AUTO_FOCUS_GAME = document.getElementById('AUTO_FOCUS_GAME').checked;
 
+            // Attack Settings
+            newConfig.JUMP_FREQUENCY = parseInt(document.getElementById('JUMP_FREQUENCY').value);
+            newConfig.ATTACK_ORDER = document.getElementById('ATTACK_ORDER').value;
+
             // Update Game Keys
             newConfig.KEYS = {
                 SHIFT: document.getElementById('KEY_SHIFT').value,
+                JUMP: document.getElementById('KEY_JUMP').value,
                 POTION_HP: document.getElementById('KEY_POTION_HP').value,
                 POTION_MP: document.getElementById('KEY_POTION_MP').value,
                 LEFT: document.getElementById('KEY_LEFT').value,

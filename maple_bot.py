@@ -43,7 +43,10 @@ MP_CHECK_POINT = None
 LIE_DETECTOR_POINT = None # New
 POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
 AUTO_FOCUS_GAME = True
+AUTO_FOCUS_GAME = True
 LIE_CHECK_INTERVAL = 5.0
+JUMP_FREQUENCY = 2
+ATTACK_ORDER = "JUMP_THEN_ATTACK"
 
 # System Keys Defaults
 SYSTEM_KEYS = {
@@ -61,7 +64,10 @@ KEYS = {
     'POTION_HP': ';',
     'POTION_MP': 'l',
     'LEFT': 'left',
-    'RIGHT': 'right'
+    'POTION_MP': 'l',
+    'LEFT': 'left',
+    'RIGHT': 'right',
+    'JUMP': 'space'
 }
 
 def save_config():
@@ -80,7 +86,11 @@ def save_config():
         'SYSTEM_KEYS': SYSTEM_KEYS,
         'GAME_WINDOW_NAME': GAME_WINDOW_NAME,
         'AUTO_FOCUS_GAME': AUTO_FOCUS_GAME,
-        'LIE_CHECK_INTERVAL': LIE_CHECK_INTERVAL
+        'GAME_WINDOW_NAME': GAME_WINDOW_NAME,
+        'AUTO_FOCUS_GAME': AUTO_FOCUS_GAME,
+        'LIE_CHECK_INTERVAL': LIE_CHECK_INTERVAL,
+        'JUMP_FREQUENCY': JUMP_FREQUENCY,
+        'ATTACK_ORDER': ATTACK_ORDER
     }
     try:
         with open(CONFIG_FILE, 'w') as f:
@@ -94,7 +104,7 @@ import subprocess
 
 def load_config():
     global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, LIE_DETECTOR_POINT
-    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS, GAME_WINDOW_NAME, AUTO_FOCUS_GAME, LIE_CHECK_INTERVAL
+    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS, GAME_WINDOW_NAME, AUTO_FOCUS_GAME, LIE_CHECK_INTERVAL, JUMP_FREQUENCY, ATTACK_ORDER
     
     if os.path.exists(CONFIG_FILE):
         try:
@@ -126,6 +136,10 @@ def load_config():
                 GAME_WINDOW_NAME = data.get('GAME_WINDOW_NAME', "MapleStory")
                 AUTO_FOCUS_GAME = data.get('AUTO_FOCUS_GAME', True)
                 LIE_CHECK_INTERVAL = float(data.get('LIE_CHECK_INTERVAL', 5.0))
+                
+                # Attack Sequence
+                JUMP_FREQUENCY = int(data.get('JUMP_FREQUENCY', 2))
+                ATTACK_ORDER = data.get('ATTACK_ORDER', "JUMP_THEN_ATTACK")
 
             print(f"[Config] Loaded: Minimap={bool(MINIMAP_REGION)}, HomeX={HOME_X}")
             print(f"[Config] Intervals: Shift={SHIFT_INTERVAL}s, Potion={POTION_INTERVAL}s")
@@ -394,17 +408,28 @@ def main():
             if AUTO_FOCUS_GAME and not ensure_game_focus():
                 continue
 
-            # 1. Blind Key Presses (Shift / Attack)
+            # 1. Blind Key Presses (Attack Sequence)
             if now - last_shift >= SHIFT_INTERVAL:
-                pyautogui.press(KEYS['SHIFT'])
                 shift_count += 1
                 
-                # Every 2nd Shift, Jump (Space)
-                if shift_count % 2 == 0:
-                     # Add a tiny delay so it registers as "Shift + Space" or "Shift then Space"
-                    time.sleep(0.05)
-                    pyautogui.press('space')
-                    # print(" [Action] Jump!") 
+                # Check if this is a JUMP turn
+                # Sequence: Attack -> Jump+Attack -> Attack...
+                should_jump = (JUMP_FREQUENCY > 0 and shift_count % JUMP_FREQUENCY == 0)
+                
+                if should_jump:
+                    if ATTACK_ORDER == "JUMP_THEN_ATTACK":
+                        # Jump First, Then Attack (Flash Jump style)
+                        pyautogui.press(KEYS['JUMP'])
+                        time.sleep(0.05) # Tiny delay for game to register sequence
+                        pyautogui.press(KEYS['SHIFT'])
+                    else:
+                        # Attack First, Then Jump
+                        pyautogui.press(KEYS['SHIFT'])
+                        time.sleep(0.05)
+                        pyautogui.press(KEYS['JUMP'])
+                else:
+                    # Just Attack
+                    pyautogui.press(KEYS['SHIFT'])
 
                 last_shift = now
             

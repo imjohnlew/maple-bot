@@ -30,7 +30,9 @@ DEFAULTS = {
     },
     "GAME_WINDOW_NAME": "MapleStory",
     "AUTO_FOCUS_GAME": True,
-    "LIE_CHECK_INTERVAL": 5.0
+    "LIE_CHECK_INTERVAL": 5.0,
+    "JUMP_FREQUENCY": 2,
+    "ATTACK_ORDER": "JUMP_THEN_ATTACK"
 }
 
 def load_config():

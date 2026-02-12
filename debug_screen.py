@@ -1,34 +1,22 @@
 import pyautogui
-import sys
-from PIL import Image
+import time
 
-print(f"Platform: {sys.platform}")
-print(f"Screen Size (Main): {pyautogui.size()}")
+print("=== Color Inspector Tool ===")
+print("Hover over your HP/MP bar to check the color values.")
+print("Press Ctrl+C to stop.\n")
 
 try:
-    # Use coordinates known to be from the secondary monitor based on previous logs
-    # Or fallback to mouse if mouse is already in that region
-    # But coordinate (3292, 2044) was logged previously.
-    test_coords = [(3292, 2044), pyautogui.position()]
-    
-    for (x, y) in test_coords:
-        print(f"\n--- Testing Coordinate ({x}, {y}) ---")
-        
-        # Try capturing region
+    while True:
+        x, y = pyautogui.position()
         try:
-            # On macOS, region is (left, top, width, height)
-            im = pyautogui.screenshot(region=(x, y, 1, 1))
-            color = im.getpixel((0, 0))
-            print(f"SUCCESS: Captured region at ({x}, {y}) -> Color: {color}")
-        except Exception as e:
-            print(f"FAILED: region capture at ({x}, {y}): {e}")
-
-        # Try direct pixel()
-        try:
+            # Get color at mouse position
             color = pyautogui.pixel(x, y)
-            print(f"Direct pixel() call at ({x}, {y}): {color}")
+            
+            # Print cleanly on one line
+            # format: (R, G, B) at (X, Y)
+            print(f"\r Pos: ({x:4}, {y:4})  Color: {color}   ", end="", flush=True)
         except Exception as e:
-            print(f"Direct pixel() call failed: {e}")
-
-except Exception as e:
-    print(f"General Error: {e}")
+            pass
+        time.sleep(0.1)
+except KeyboardInterrupt:
+    print("\nStopped.")

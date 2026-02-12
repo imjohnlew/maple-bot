@@ -9,7 +9,10 @@ CONFIG_FILE = "bot_config_v2.json"
 # --- Configuration State ---
 # Blind Mode Timers
 SHIFT_INTERVAL = 0.5
-POTION_INTERVAL = 4.0
+POTION_INTERVAL = 5.0
+
+# Disable FailSafe (User can use ESC to quit)
+pyautogui.FAILSAFE = False
 
 # Minimap / Auto-Walk
 MINIMAP_REGION = None      # (left, top, width, height)
@@ -24,6 +27,22 @@ MINIMAP_START_POS = None
 RUNNING = False
 EXIT_PROGRAM = False
 
+# Smart Potion State
+HP_CHECK_POINT = None  # (x, y, (r, g, b))
+MP_CHECK_POINT = None
+POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
+
+# Runtime State
+RUNNING = False
+EXIT_PROGRAM = False
+
+# Smart Potion State
+# Smart Potion State
+HP_CHECK_POINT = None  # (x, y, (r, g, b))
+MP_CHECK_POINT = None
+LIE_DETECTOR_POINT = None # New
+POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
+
 KEYS = {
     'SHIFT': 'shift',
     'POTION_HP': ';',
@@ -36,17 +55,27 @@ def save_config():
     data = {
         'MINIMAP_REGION': MINIMAP_REGION,
         'PLAYER_DOT_COLOR': PLAYER_DOT_COLOR,
-        'HOME_X': HOME_X
+        'HOME_X': HOME_X,
+        'HP_CHECK_POINT': HP_CHECK_POINT,
+        'MP_CHECK_POINT': MP_CHECK_POINT,
+        'LIE_DETECTOR_POINT': LIE_DETECTOR_POINT,
+        'POTION_MODE': POTION_MODE,
+        'SHIFT_INTERVAL': SHIFT_INTERVAL,
+        'POTION_INTERVAL': POTION_INTERVAL,
+        'WALK_TOLERANCE': WALK_TOLERANCE,
+        'KEYS': KEYS
     }
     try:
         with open(CONFIG_FILE, 'w') as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=4)
         print(f"[Config] Saved to {CONFIG_FILE}")
     except Exception as e:
         print(f"[Config] Save failed: {e}")
 
 def load_config():
-    global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X
+    global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, LIE_DETECTOR_POINT
+    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS
+    
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
@@ -54,7 +83,27 @@ def load_config():
                 if 'MINIMAP_REGION' in data: MINIMAP_REGION = tuple(data['MINIMAP_REGION'])
                 if 'PLAYER_DOT_COLOR' in data: PLAYER_DOT_COLOR = tuple(data['PLAYER_DOT_COLOR'])
                 if 'HOME_X' in data: HOME_X = data['HOME_X']
-            print(f"[Config] Loaded: Minimap={MINIMAP_REGION}, HomeX={HOME_X}")
+                if 'HP_CHECK_POINT' in data and data['HP_CHECK_POINT']: 
+                    hp = data['HP_CHECK_POINT']
+                    HP_CHECK_POINT = (hp[0], hp[1], tuple(hp[2]))
+                if 'MP_CHECK_POINT' in data and data['MP_CHECK_POINT']:
+                    mp = data['MP_CHECK_POINT']
+                    MP_CHECK_POINT = (mp[0], mp[1], tuple(mp[2]))
+                if 'LIE_DETECTOR_POINT' in data and data['LIE_DETECTOR_POINT']:
+                    ld = data['LIE_DETECTOR_POINT']
+                    LIE_DETECTOR_POINT = (ld[0], ld[1], tuple(ld[2]))
+
+                if 'POTION_MODE' in data: POTION_MODE = data['POTION_MODE']
+                
+                # New Configs
+                if 'SHIFT_INTERVAL' in data: SHIFT_INTERVAL = float(data['SHIFT_INTERVAL'])
+                if 'POTION_INTERVAL' in data: POTION_INTERVAL = float(data['POTION_INTERVAL'])
+                if 'WALK_TOLERANCE' in data: WALK_TOLERANCE = int(data['WALK_TOLERANCE'])
+                if 'KEYS' in data: KEYS.update(data['KEYS'])
+
+            print(f"[Config] Loaded: Minimap={bool(MINIMAP_REGION)}, HomeX={HOME_X}")
+            print(f"[Config] Intervals: Shift={SHIFT_INTERVAL}s, Potion={POTION_INTERVAL}s")
+            print(f"[Config] Lie Detector: {'SET' if LIE_DETECTOR_POINT else 'NOT SET'}")
         except Exception as e:
             print(f"[Config] Load failed: {e}")
 
@@ -93,7 +142,7 @@ def find_player_on_minimap():
     return None
 
 def on_press(key):
-    global RUNNING, EXIT_PROGRAM, MINIMAP_START_POS, MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X
+    global RUNNING, EXIT_PROGRAM, MINIMAP_START_POS, MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, LIE_DETECTOR_POINT, POTION_MODE
     
     try:
         # F8: Start/Stop
@@ -101,16 +150,41 @@ def on_press(key):
             RUNNING = not RUNNING
             print(f"\n[{'RUNNING' if RUNNING else 'PAUSED'}]")
             if RUNNING:
-                print(" -> Pressing Shift every 0.5s")
-                print(" -> Pressing L/; every 4.0s")
+                print(" -> Keys: Shift (0.5s)")
+                if HP_CHECK_POINT or MP_CHECK_POINT:
+                    print(f" -> Smart Potion: [{POTION_MODE} LOGIC]") 
+                    if POTION_MODE == "SAFE":
+                        print("    (Drink if Color DISAPPEARS)")
+                    else:
+                        print("    (Drink if Color APPEARS/MATCHES)")
+                else:
+                    print(" -> Timer Potion (Fallback): Every 5.0s")
+                
                 if MINIMAP_REGION and HOME_X:
-                    print(f" -> Auto-Walking enabled (Home X: {HOME_X})")
+                    print(f" -> Auto-Walking ENABLED (Home X: {HOME_X})")
                 else:
                     print(" -> Auto-Walk DISABLED (Set Minimap F4 & Home F5 first)")
+                
+                if LIE_DETECTOR_POINT:
+                    print(" -> Lie Detector Alarm ENABLED (Watching Point)")
 
         if key == keyboard.Key.esc:
             EXIT_PROGRAM = True
             return False
+
+        # F9: Toggle Potion Mode
+        if key == keyboard.Key.f9:
+            if POTION_MODE == "SAFE":
+                POTION_MODE = "DANGER"
+                print("\n[Potion Mode] SWITCHED TO: DANGER (White Bar detection)")
+                print(" -> Logic: Drink potion if pixel MATCHES the saved color.")
+                print(" -> Tip: Set F6/F7 on the EMPTY/WHITE part of the bar.")
+            else:
+                POTION_MODE = "SAFE"
+                print("\n[Potion Mode] SWITCHED TO: SAFE (Red Bar detection)")
+                print(" -> Logic: Drink potion if pixel DOES NOT match the saved color.")
+                print(" -> Tip: Set F6/F7 on the FULL/RED part of the bar.")
+            save_config()
 
         # F4: Set Minimap Region (Top-Left then Bottom-Right)
         if key == keyboard.Key.f4:
@@ -139,7 +213,7 @@ def on_press(key):
             if not (mx <= x <= mx + mw and my <= y <= my + mh):
                 print("Error: Mouse not inside defined Minimap region!")
                 return
-
+            
             # Capture color under mouse
             # Robust way for macOS Retina/Multi-monitor
             try:
@@ -156,6 +230,48 @@ def on_press(key):
             
             print(f"[Home] Set! Player Color: {color}, Relative X: {HOME_X}")
             save_config()
+
+        # F6: Set HP Check Point
+        if key == keyboard.Key.f6:
+            x, y = pyautogui.position()
+            try:
+                px = pyautogui.screenshot(region=(x, y, 1, 1))
+                color = px.getpixel((0, 0))
+                HP_CHECK_POINT = (x, y, color)
+                print(f"[HP Logic] Set at ({x}, {y}) Color: {color}")
+                if POTION_MODE == "SAFE":
+                    print(" -> Watch for this color to DISAPPEAR (e.g. Red)")
+                else:
+                    print(" -> Watch for this color to APPEAR (e.g. White/Empty)")
+                save_config()
+            except Exception as e:
+                print(f"Error setting HP: {e}")
+
+        # F7: Set MP Check Point
+        if key == keyboard.Key.f7:
+            x, y = pyautogui.position()
+            try:
+                px = pyautogui.screenshot(region=(x, y, 1, 1))
+                color = px.getpixel((0, 0))
+                MP_CHECK_POINT = (x, y, color)
+                print(f"[MP Logic] Set at ({x}, {y}) Color: {color}")
+                save_config()
+            except Exception as e:
+                print(f"Error setting MP: {e}")
+
+        # F10: Set Lie Detector Check Point
+        if key == keyboard.Key.f10:
+            x, y = pyautogui.position()
+            try:
+                px = pyautogui.screenshot(region=(x, y, 1, 1))
+                color = px.getpixel((0, 0))
+                LIE_DETECTOR_POINT = (x, y, color)
+                print(f"[Lie Detector] Set at ({x}, {y}) Color: {color}")
+                print(" -> Logic: Checks if this color APPEARS (Exact match).")
+                print(" -> Will PAUSE bot and PLAY ALARM sound.")
+                save_config()
+            except Exception as e:
+                print(f"Error setting Lie Detector: {e}")
 
     except Exception as e:
         print(f"Key Error: {e}")
@@ -186,9 +302,13 @@ def press_game_key(key_char):
         print(f"Key Error with pynput: {e}")
 
 def main():
-    print("=== Maple Bot (Blind + AutoWalk) ===")
-    print("F4: Set Minimap Region (Top-Left -> Bottom-Right)")
-    print("F5: Set Home Position (Hover over YOUR yellow dot on minimap)")
+    global CURRENT_TARGET, RUNNING
+    print("=== Maple Bot (Blind + AutoWalk + SmartPot) ===")
+    print("F4: Set Minimap Region")
+    print("F5: Set Home Position")
+    print("F6: Set HP Check Point")
+    print("F7: Set MP Check Point")
+    print("F10: Set Lie Detector Check Point")
     print("F8: Start/Stop")
     print("ESC: Quit")
     print("------------------------------------")
@@ -200,6 +320,7 @@ def main():
 
     last_shift = 0
     last_potion = 0
+    shift_count = 0  # To track for Jump
     
     # State for walking
     holding_key = None # 'left' or 'right'
@@ -208,19 +329,49 @@ def main():
         if RUNNING:
             now = time.time()
 
-            # 1. Blind Key Presses
+
+            # 1. Blind Key Presses (Shift / Attack)
             if now - last_shift >= SHIFT_INTERVAL:
-                # print(" [Action] Shift") # Uncomment to debug
-                press_game_key(KEYS['SHIFT'])
+                pyautogui.press(KEYS['SHIFT'])
+                shift_count += 1
+                
+                # Every 2nd Shift, Jump (Space)
+                if shift_count % 2 == 0:
+                     # Add a tiny delay so it registers as "Shift + Space" or "Shift then Space"
+                    time.sleep(0.05)
+                    pyautogui.press('space')
+                    # print(" [Action] Jump!") 
+
                 last_shift = now
             
+            # --- TIMER POTION LOGIC (Simple & Reliable) ---
             if now - last_potion >= POTION_INTERVAL:
-                print(" [Action] Potions (; and l)")
-                press_game_key(KEYS['POTION_HP']) # ;
-                press_game_key(KEYS['POTION_MP']) # l
+                print(" [Timer] Potions (; and l)")
+                pyautogui.press(KEYS['POTION_HP']) 
+                pyautogui.press(KEYS['POTION_MP'])
                 last_potion = now
 
-            # 2. Auto-Walk Logic
+            # 3. Lie Detector Check
+            if LIE_DETECTOR_POINT:
+                # Unpack
+                lx, ly, l_target_color = LIE_DETECTOR_POINT
+                try:
+                    # Check if the Lie Detector box appeared (Pixel matches what we saved)
+                    if colors_match(pyautogui.pixel(lx, ly), l_target_color, tolerance=5):
+                        print("\n[ALARM] LIE DETECTOR DETECTED! Pausing Bot...")
+                        RUNNING = False 
+                        
+                        # Play Sound Alarm (Mac specific)
+                        # Play 5 times to ensure attention
+                        for _ in range(5):
+                            os.system('afplay /System/Library/Sounds/Glass.aiff')
+                            time.sleep(0.5)
+                        
+                        print(" -> Bot PAUSED. Solve the Captcha, then press F8 to Resume.")
+                except Exception:
+                    pass
+
+            # 4. Auto-Walk Logic
             if MINIMAP_REGION and PLAYER_DOT_COLOR and HOME_X is not None:
                 current_x = find_player_on_minimap()
                 
@@ -233,23 +384,23 @@ def main():
                             # Walk Left
                             if holding_key != 'left':
                                 if holding_key: 
-                                    keyboard_controller.release(Key.right)
-                                keyboard_controller.press(Key.left)
+                                    pyautogui.keyUp('right')
+                                pyautogui.keyDown('left')
                                 holding_key = 'left'
                         else:
                              # Walk Right
                             if holding_key != 'right':
                                 if holding_key: 
-                                    keyboard_controller.release(Key.left)
-                                keyboard_controller.press(Key.right)
+                                    pyautogui.keyUp('left')
+                                pyautogui.keyDown('right')
                                 holding_key = 'right'
                     else:
                         # Home
                         if holding_key:
                             if holding_key == 'left':
-                                keyboard_controller.release(Key.left)
+                                pyautogui.keyUp('left')
                             if holding_key == 'right':
-                                keyboard_controller.release(Key.right)
+                                pyautogui.keyUp('right')
                             holding_key = None
             
             time.sleep(0.05) 
@@ -257,9 +408,9 @@ def main():
         else:
             if holding_key:
                 if holding_key == 'left':
-                    keyboard_controller.release(Key.left)
+                    pyautogui.keyUp('left')
                 if holding_key == 'right':
-                    keyboard_controller.release(Key.right)
+                    pyautogui.keyUp('right')
                 holding_key = None
             time.sleep(0.1)
 

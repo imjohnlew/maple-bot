@@ -27,7 +27,9 @@ DEFAULTS = {
         "SET_MP": "=",
         "SET_LIE": "0",
         "TOGGLE_MODE": "9"
-    }
+    },
+    "GAME_WINDOW_NAME": "MapleStory",
+    "AUTO_FOCUS_GAME": True
 }
 
 def load_config():
@@ -50,6 +52,11 @@ def load_config():
                 for subkey, subval in val.items():
                     if subkey not in config_data[key]:
                         config_data[key][subkey] = subval
+    
+    # Ensure default string keys exist
+    if 'GAME_WINDOW_NAME' not in config_data:
+        config_data['GAME_WINDOW_NAME'] = DEFAULTS['GAME_WINDOW_NAME']
+        
     return config_data
 
 @app.route('/')

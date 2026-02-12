@@ -42,6 +42,7 @@ HP_CHECK_POINT = None  # (x, y, (r, g, b))
 MP_CHECK_POINT = None
 LIE_DETECTOR_POINT = None # New
 POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
+AUTO_FOCUS_GAME = True
 
 # System Keys Defaults
 SYSTEM_KEYS = {
@@ -75,7 +76,9 @@ def save_config():
         'POTION_INTERVAL': POTION_INTERVAL,
         'WALK_TOLERANCE': WALK_TOLERANCE,
         'KEYS': KEYS,
-        'SYSTEM_KEYS': SYSTEM_KEYS
+        'SYSTEM_KEYS': SYSTEM_KEYS,
+        'GAME_WINDOW_NAME': GAME_WINDOW_NAME,
+        'AUTO_FOCUS_GAME': AUTO_FOCUS_GAME
     }
     try:
         with open(CONFIG_FILE, 'w') as f:
@@ -84,9 +87,12 @@ def save_config():
     except Exception as e:
         print(f"[Config] Save failed: {e}")
 
+from AppKit import NSWorkspace
+import subprocess
+
 def load_config():
     global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, LIE_DETECTOR_POINT
-    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS
+    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS, GAME_WINDOW_NAME, AUTO_FOCUS_GAME
     
     if os.path.exists(CONFIG_FILE):
         try:
@@ -113,12 +119,30 @@ def load_config():
                 if 'WALK_TOLERANCE' in data: WALK_TOLERANCE = int(data['WALK_TOLERANCE'])
                 if 'KEYS' in data: KEYS.update(data['KEYS'])
                 if 'SYSTEM_KEYS' in data: SYSTEM_KEYS.update(data['SYSTEM_KEYS'])
+                
+                # App Focus
+                GAME_WINDOW_NAME = data.get('GAME_WINDOW_NAME', "MapleStory")
+                AUTO_FOCUS_GAME = data.get('AUTO_FOCUS_GAME', True)
 
             print(f"[Config] Loaded: Minimap={bool(MINIMAP_REGION)}, HomeX={HOME_X}")
             print(f"[Config] Intervals: Shift={SHIFT_INTERVAL}s, Potion={POTION_INTERVAL}s")
-            print(f"[Config] Control Keys: Start=[{SYSTEM_KEYS['START_STOP']}] Minimap=[{SYSTEM_KEYS['SET_MINIMAP']}]")
+            print(f"[Config] Target App: {GAME_WINDOW_NAME}")
         except Exception as e:
             print(f"[Config] Load failed: {e}")
+
+def ensure_game_focus():
+    """Checks if the game is focused. If not, activates it."""
+    try:
+        active_app = NSWorkspace.sharedWorkspace().frontmostApplication().localizedName()
+        if active_app != GAME_WINDOW_NAME:
+            # print(f"[System] Switching focus to {GAME_WINDOW_NAME}...")
+            script = f'tell application "{GAME_WINDOW_NAME}" to activate'
+            subprocess.run(['osascript', '-e', script], capture_output=True)
+            time.sleep(0.1) # Wait for swap
+            return False # Indicate we just swapped, maybe skip this frame's action
+    except Exception:
+        pass
+    return True
 
 def normalize_key(key):
     """Convert pynput key object to string matching config."""
@@ -338,6 +362,10 @@ def main():
 
         if RUNNING:
             now = current_time
+            
+            # Ensure Game is Focused
+            if AUTO_FOCUS_GAME and not ensure_game_focus():
+                continue
 
             # 1. Blind Key Presses (Shift / Attack)
             if now - last_shift >= SHIFT_INTERVAL:

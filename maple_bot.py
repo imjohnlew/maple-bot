@@ -43,6 +43,17 @@ MP_CHECK_POINT = None
 LIE_DETECTOR_POINT = None # New
 POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
 
+# System Keys Defaults
+SYSTEM_KEYS = {
+    "START_STOP": "[",
+    "SET_MINIMAP": "]",
+    "SET_HOME": "\\",
+    "SET_HP": "-",
+    "SET_MP": "=",
+    "SET_LIE": "0",
+    "TOGGLE_MODE": "9"
+}
+
 KEYS = {
     'SHIFT': 'shift',
     'POTION_HP': ';',
@@ -63,7 +74,8 @@ def save_config():
         'SHIFT_INTERVAL': SHIFT_INTERVAL,
         'POTION_INTERVAL': POTION_INTERVAL,
         'WALK_TOLERANCE': WALK_TOLERANCE,
-        'KEYS': KEYS
+        'KEYS': KEYS,
+        'SYSTEM_KEYS': SYSTEM_KEYS
     }
     try:
         with open(CONFIG_FILE, 'w') as f:
@@ -74,7 +86,7 @@ def save_config():
 
 def load_config():
     global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, LIE_DETECTOR_POINT
-    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS
+    global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS
     
     if os.path.exists(CONFIG_FILE):
         try:
@@ -100,53 +112,37 @@ def load_config():
                 if 'POTION_INTERVAL' in data: POTION_INTERVAL = float(data['POTION_INTERVAL'])
                 if 'WALK_TOLERANCE' in data: WALK_TOLERANCE = int(data['WALK_TOLERANCE'])
                 if 'KEYS' in data: KEYS.update(data['KEYS'])
+                if 'SYSTEM_KEYS' in data: SYSTEM_KEYS.update(data['SYSTEM_KEYS'])
 
             print(f"[Config] Loaded: Minimap={bool(MINIMAP_REGION)}, HomeX={HOME_X}")
             print(f"[Config] Intervals: Shift={SHIFT_INTERVAL}s, Potion={POTION_INTERVAL}s")
-            print(f"[Config] Lie Detector: {'SET' if LIE_DETECTOR_POINT else 'NOT SET'}")
+            print(f"[Config] Control Keys: Start=[{SYSTEM_KEYS['START_STOP']}] Minimap=[{SYSTEM_KEYS['SET_MINIMAP']}]")
         except Exception as e:
             print(f"[Config] Load failed: {e}")
 
-def colors_match(c1, c2, tolerance=10):
-    if not c1 or not c2: return False
-    return all(abs(a - b) <= tolerance for a, b in zip(c1[:3], c2[:3]))
-
-def find_player_on_minimap():
-    if not MINIMAP_REGION or not PLAYER_DOT_COLOR:
-        return None
-
-    left, top, w, h = MINIMAP_REGION
-    
-    # Take screenshot of minimap with Region support fix
-    # On macOS, screenshot(region=...) needs ints
-    region_ints = (int(left), int(top), int(w), int(h))
-    
+def normalize_key(key):
+    """Convert pynput key object to string matching config."""
     try:
-        im = pyautogui.screenshot(region=region_ints)
-    except Exception:
-        # Fallback specifically for potential float errors or out of bounds
-        return None
-
-    width, height = im.size
-    
-    # Search for player color
-    # We scan center-out or just linear? Linear is fast enough for small minimaps.
-    for x in range(width):
-        # Scan Y first? No, X is fine.
-        for y in range(height):
-            # getpixel locally is 0..width-1
-            px = im.getpixel((x, y))
-            if colors_match(px, PLAYER_DOT_COLOR, tolerance=10): # Increased tolerance slightly for robustness
-                # Return relative X (0..width)
-                return x
-    return None
+        if hasattr(key, 'char') and key.char:
+            return key.char
+        else:
+            # Special keys like Key.f8 -> 'f8', Key.esc -> 'esc'
+            return key.name
+    except:
+        return str(key)
 
 def on_press(key):
     global RUNNING, EXIT_PROGRAM, MINIMAP_START_POS, MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, LIE_DETECTOR_POINT, POTION_MODE
     
+    key_str = normalize_key(key)
+    
     try:
-        # F8: Start/Stop
-        if key == keyboard.Key.f8:
+        if key == keyboard.Key.esc:
+            EXIT_PROGRAM = True
+            return False
+
+        # Start/Stop
+        if key_str == SYSTEM_KEYS['START_STOP']:
             RUNNING = not RUNNING
             print(f"\n[{'RUNNING' if RUNNING else 'PAUSED'}]")
             if RUNNING:
@@ -163,35 +159,31 @@ def on_press(key):
                 if MINIMAP_REGION and HOME_X:
                     print(f" -> Auto-Walking ENABLED (Home X: {HOME_X})")
                 else:
-                    print(" -> Auto-Walk DISABLED (Set Minimap F4 & Home F5 first)")
+                    print(" -> Auto-Walk DISABLED (Set Minimap first)")
                 
                 if LIE_DETECTOR_POINT:
                     print(" -> Lie Detector Alarm ENABLED (Watching Point)")
 
-        if key == keyboard.Key.esc:
-            EXIT_PROGRAM = True
-            return False
-
-        # F9: Toggle Potion Mode
-        if key == keyboard.Key.f9:
+        # Toggle Potion Mode
+        if key_str == SYSTEM_KEYS['TOGGLE_MODE']:
             if POTION_MODE == "SAFE":
                 POTION_MODE = "DANGER"
                 print("\n[Potion Mode] SWITCHED TO: DANGER (White Bar detection)")
                 print(" -> Logic: Drink potion if pixel MATCHES the saved color.")
-                print(" -> Tip: Set F6/F7 on the EMPTY/WHITE part of the bar.")
+                print(" -> Tip: Set Points on the EMPTY/WHITE part of the bar.")
             else:
                 POTION_MODE = "SAFE"
                 print("\n[Potion Mode] SWITCHED TO: SAFE (Red Bar detection)")
                 print(" -> Logic: Drink potion if pixel DOES NOT match the saved color.")
-                print(" -> Tip: Set F6/F7 on the FULL/RED part of the bar.")
+                print(" -> Tip: Set Points on the FULL/RED part of the bar.")
             save_config()
 
-        # F4: Set Minimap Region (Top-Left then Bottom-Right)
-        if key == keyboard.Key.f4:
+        # Set Minimap Region (Top-Left then Bottom-Right)
+        if key_str == SYSTEM_KEYS['SET_MINIMAP']:
             x, y = pyautogui.position()
             if MINIMAP_START_POS is None:
                 MINIMAP_START_POS = (x, y)
-                print(f"[Minimap] Top-Left: ({x}, {y}). NOW Click Bottom-Right (F4).")
+                print(f"[Minimap] Top-Left: ({x}, {y}). NOW Click Bottom-Right ({SYSTEM_KEYS['SET_MINIMAP']}).")
             else:
                 x1, y1 = MINIMAP_START_POS
                 final_x, final_y = min(x1, x), min(y1, y)
@@ -201,10 +193,10 @@ def on_press(key):
                 print(f"[Minimap] Set: {MINIMAP_REGION}")
                 save_config()
 
-        # F5: Set Home (Hover over yellow dot on minimap)
-        if key == keyboard.Key.f5:
+        # Set Home (Hover over yellow dot on minimap)
+        if key_str == SYSTEM_KEYS['SET_HOME']:
             if not MINIMAP_REGION:
-                print("Set Minimap (F4) first!")
+                print("Set Minimap first!")
                 return
             
             x, y = pyautogui.position()
@@ -215,24 +207,22 @@ def on_press(key):
                 return
             
             # Capture color under mouse
-            # Robust way for macOS Retina/Multi-monitor
             try:
                 im_pixel = pyautogui.screenshot(region=(x, y, 1, 1))
                 color = im_pixel.getpixel((0, 0))
             except Exception:
-                print("Error: Could not read pixel color. Try ensuring mouse is on screen.")
+                print("Error: Could not read pixel color.")
                 return
 
             PLAYER_DOT_COLOR = color
-            
             # Calculate relative X
             HOME_X = x - mx
             
             print(f"[Home] Set! Player Color: {color}, Relative X: {HOME_X}")
             save_config()
 
-        # F6: Set HP Check Point
-        if key == keyboard.Key.f6:
+        # Set HP Check Point
+        if key_str == SYSTEM_KEYS['SET_HP']:
             x, y = pyautogui.position()
             try:
                 px = pyautogui.screenshot(region=(x, y, 1, 1))
@@ -247,8 +237,8 @@ def on_press(key):
             except Exception as e:
                 print(f"Error setting HP: {e}")
 
-        # F7: Set MP Check Point
-        if key == keyboard.Key.f7:
+        # Set MP Check Point
+        if key_str == SYSTEM_KEYS['SET_MP']:
             x, y = pyautogui.position()
             try:
                 px = pyautogui.screenshot(region=(x, y, 1, 1))
@@ -259,8 +249,8 @@ def on_press(key):
             except Exception as e:
                 print(f"Error setting MP: {e}")
 
-        # F10: Set Lie Detector Check Point
-        if key == keyboard.Key.f10:
+        # Set Lie Detector Check Point
+        if key_str == SYSTEM_KEYS['SET_LIE']:
             x, y = pyautogui.position()
             try:
                 px = pyautogui.screenshot(region=(x, y, 1, 1))
@@ -268,7 +258,6 @@ def on_press(key):
                 LIE_DETECTOR_POINT = (x, y, color)
                 print(f"[Lie Detector] Set at ({x}, {y}) Color: {color}")
                 print(" -> Logic: Checks if this color APPEARS (Exact match).")
-                print(" -> Will PAUSE bot and PLAY ALARM sound.")
                 save_config()
             except Exception as e:
                 print(f"Error setting Lie Detector: {e}")
@@ -303,17 +292,18 @@ def press_game_key(key_char):
 
 def main():
     global CURRENT_TARGET, RUNNING
+    # Load config first to get keys
+    load_config()
+    
     print("=== Maple Bot (Blind + AutoWalk + SmartPot) ===")
-    print("F4: Set Minimap Region")
-    print("F5: Set Home Position")
-    print("F6: Set HP Check Point")
-    print("F7: Set MP Check Point")
-    print("F10: Set Lie Detector Check Point")
-    print("F8: Start/Stop")
+    print(f"{SYSTEM_KEYS['SET_MINIMAP']}: Set Minimap Region")
+    print(f"{SYSTEM_KEYS['SET_HOME']}: Set Home Position")
+    print(f"{SYSTEM_KEYS['SET_HP']}: Set HP Check Point")
+    print(f"{SYSTEM_KEYS['SET_MP']}: Set MP Check Point")
+    print(f"{SYSTEM_KEYS['SET_LIE']}: Set Lie Detector Check Point")
+    print(f"{SYSTEM_KEYS['START_STOP']}: Start/Stop")
     print("ESC: Quit")
     print("------------------------------------")
-    
-    load_config()
     
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
@@ -325,10 +315,29 @@ def main():
     # State for walking
     holding_key = None # 'left' or 'right'
 
-    while not EXIT_PROGRAM:
-        if RUNNING:
-            now = time.time()
+    last_config_check = 0
+    last_mtime = 0
+    if os.path.exists(CONFIG_FILE):
+        last_mtime = os.path.getmtime(CONFIG_FILE)
 
+    while not EXIT_PROGRAM:
+        current_time = time.time()
+        
+        # Check for config updates every 1 second
+        if current_time - last_config_check > 1.0:
+            if os.path.exists(CONFIG_FILE):
+                try:
+                    mtime = os.path.getmtime(CONFIG_FILE)
+                    if mtime > last_mtime:
+                        print("\n[System] Config change detected. Reloading...")
+                        load_config()
+                        last_mtime = mtime
+                except Exception:
+                    pass
+            last_config_check = current_time
+
+        if RUNNING:
+            now = current_time
 
             # 1. Blind Key Presses (Shift / Attack)
             if now - last_shift >= SHIFT_INTERVAL:

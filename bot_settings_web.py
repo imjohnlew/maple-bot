@@ -11,6 +11,7 @@ CONFIG_FILE = "bot_config_v2.json"
 DEFAULTS = {
     "SHIFT_INTERVAL": 0.5,
     "POTION_INTERVAL": 5.0,
+    "ENABLE_JUMP": False,
     "WALK_TOLERANCE": 5,
     "KEYS": {
         "SHIFT": "shift",
@@ -21,11 +22,12 @@ DEFAULTS = {
     },
     "SYSTEM_KEYS": {
         "START_STOP": "[",
+        "TOGGLE_JUMP": "0",
         "SET_MINIMAP": "]",
         "SET_HOME": "\\",
         "SET_HP": "-",
         "SET_MP": "=",
-        "SET_LIE": "0",
+
         "TOGGLE_MODE": "9"
     }
 }

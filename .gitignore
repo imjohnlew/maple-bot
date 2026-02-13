@@ -5,3 +5,9 @@ venv/
 .env
 .DS_Store
 *.app/
+
+# PyInstaller
+build/
+dist/
+*.spec
+*.log

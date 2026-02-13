@@ -23,7 +23,7 @@ DEFAULTS = {
         "SET_HOME": "\\",
         "SET_HP": "-",
         "SET_MP": "=",
-        "SET_LIE": "0",
+
         "TOGGLE_MODE": "9"
     }
 }
@@ -98,7 +98,7 @@ class BotSettingsApp:
         sys_keys_frame.pack(fill=tk.X, pady=5)
         
         self.sys_key_vars = {}
-        for key_name in ["START_STOP", "SET_MINIMAP", "SET_HOME", "SET_HP", "SET_MP", "SET_LIE", "TOGGLE_MODE"]:
+        for key_name in ["START_STOP", "SET_MINIMAP", "SET_HOME", "SET_HP", "SET_MP", "TOGGLE_MODE"]:
             self.create_key_row(sys_keys_frame, key_name, "SYSTEM_KEYS", self.sys_key_vars)
 
         # Save Button

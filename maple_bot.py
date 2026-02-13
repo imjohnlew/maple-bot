@@ -40,17 +40,19 @@ EXIT_PROGRAM = False
 # Smart Potion State
 HP_CHECK_POINT = None  # (x, y, (r, g, b))
 MP_CHECK_POINT = None
-LIE_DETECTOR_POINT = None # New
+
 POTION_MODE = "SAFE" # "SAFE" (Default: drink if color GONE) or "DANGER" (Drink if color APPEARS/MATCHES)
+ENABLE_JUMP = False # Default Off
 
 # System Keys Defaults
 SYSTEM_KEYS = {
     "START_STOP": "[",
+    "TOGGLE_JUMP": "0",
     "SET_MINIMAP": "]",
     "SET_HOME": "\\",
     "SET_HP": "-",
     "SET_MP": "=",
-    "SET_LIE": "0",
+
     "TOGGLE_MODE": "9"
 }
 
@@ -69,8 +71,9 @@ def save_config():
         'HOME_X': HOME_X,
         'HP_CHECK_POINT': HP_CHECK_POINT,
         'MP_CHECK_POINT': MP_CHECK_POINT,
-        'LIE_DETECTOR_POINT': LIE_DETECTOR_POINT,
+
         'POTION_MODE': POTION_MODE,
+        'ENABLE_JUMP': ENABLE_JUMP,
         'SHIFT_INTERVAL': SHIFT_INTERVAL,
         'POTION_INTERVAL': POTION_INTERVAL,
         'WALK_TOLERANCE': WALK_TOLERANCE,
@@ -85,7 +88,7 @@ def save_config():
         print(f"[Config] Save failed: {e}")
 
 def load_config():
-    global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, LIE_DETECTOR_POINT
+    global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, ENABLE_JUMP
     global SHIFT_INTERVAL, POTION_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS
     
     if os.path.exists(CONFIG_FILE):
@@ -101,11 +104,10 @@ def load_config():
                 if 'MP_CHECK_POINT' in data and data['MP_CHECK_POINT']:
                     mp = data['MP_CHECK_POINT']
                     MP_CHECK_POINT = (mp[0], mp[1], tuple(mp[2]))
-                if 'LIE_DETECTOR_POINT' in data and data['LIE_DETECTOR_POINT']:
-                    ld = data['LIE_DETECTOR_POINT']
-                    LIE_DETECTOR_POINT = (ld[0], ld[1], tuple(ld[2]))
+
 
                 if 'POTION_MODE' in data: POTION_MODE = data['POTION_MODE']
+                if 'ENABLE_JUMP' in data: ENABLE_JUMP = bool(data['ENABLE_JUMP'])
                 
                 # New Configs
                 if 'SHIFT_INTERVAL' in data: SHIFT_INTERVAL = float(data['SHIFT_INTERVAL'])
@@ -119,6 +121,38 @@ def load_config():
             print(f"[Config] Control Keys: Start=[{SYSTEM_KEYS['START_STOP']}] Minimap=[{SYSTEM_KEYS['SET_MINIMAP']}]")
         except Exception as e:
             print(f"[Config] Load failed: {e}")
+
+def colors_match(c1, c2, tolerance=10):
+    if not c1 or not c2: return False
+    return all(abs(a - b) <= tolerance for a, b in zip(c1[:3], c2[:3]))
+
+def find_player_on_minimap():
+    if not MINIMAP_REGION or not PLAYER_DOT_COLOR:
+        return None
+
+    left, top, w, h = MINIMAP_REGION
+    
+    # Take screenshot of minimap with Region support fix
+    # On macOS, screenshot(region=...) needs ints
+    region_ints = (int(left), int(top), int(w), int(h))
+    
+    try:
+        im = pyautogui.screenshot(region=region_ints)
+    except Exception:
+        # Fallback specifically for potential float errors or out of bounds
+        return None
+
+    width, height = im.size
+    
+    # Search for player color
+    for x in range(width):
+        for y in range(height):
+            # getpixel locally is 0..width-1
+            px = im.getpixel((x, y))
+            if colors_match(px, PLAYER_DOT_COLOR, tolerance=10):
+                # Return relative X (0..width)
+                return x
+    return None
 
 def normalize_key(key):
     """Convert pynput key object to string matching config."""
@@ -161,8 +195,9 @@ def on_press(key):
                 else:
                     print(" -> Auto-Walk DISABLED (Set Minimap first)")
                 
-                if LIE_DETECTOR_POINT:
-                    print(" -> Lie Detector Alarm ENABLED (Watching Point)")
+                print(f" -> Jump Attack: {'ENABLED' if ENABLE_JUMP else 'DISABLED'}")
+                
+
 
         # Toggle Potion Mode
         if key_str == SYSTEM_KEYS['TOGGLE_MODE']:
@@ -176,6 +211,12 @@ def on_press(key):
                 print("\n[Potion Mode] SWITCHED TO: SAFE (Red Bar detection)")
                 print(" -> Logic: Drink potion if pixel DOES NOT match the saved color.")
                 print(" -> Tip: Set Points on the FULL/RED part of the bar.")
+            save_config()
+
+        # Toggle Jump
+        if key_str == SYSTEM_KEYS['TOGGLE_JUMP']:
+            ENABLE_JUMP = not ENABLE_JUMP
+            print(f"\n[Jump] NOW: {'ENABLED' if ENABLE_JUMP else 'DISABLED'}")
             save_config()
 
         # Set Minimap Region (Top-Left then Bottom-Right)
@@ -249,18 +290,7 @@ def on_press(key):
             except Exception as e:
                 print(f"Error setting MP: {e}")
 
-        # Set Lie Detector Check Point
-        if key_str == SYSTEM_KEYS['SET_LIE']:
-            x, y = pyautogui.position()
-            try:
-                px = pyautogui.screenshot(region=(x, y, 1, 1))
-                color = px.getpixel((0, 0))
-                LIE_DETECTOR_POINT = (x, y, color)
-                print(f"[Lie Detector] Set at ({x}, {y}) Color: {color}")
-                print(" -> Logic: Checks if this color APPEARS (Exact match).")
-                save_config()
-            except Exception as e:
-                print(f"Error setting Lie Detector: {e}")
+
 
     except Exception as e:
         print(f"Key Error: {e}")
@@ -300,8 +330,11 @@ def main():
     print(f"{SYSTEM_KEYS['SET_HOME']}: Set Home Position")
     print(f"{SYSTEM_KEYS['SET_HP']}: Set HP Check Point")
     print(f"{SYSTEM_KEYS['SET_MP']}: Set MP Check Point")
-    print(f"{SYSTEM_KEYS['SET_LIE']}: Set Lie Detector Check Point")
+
+    print(f"{SYSTEM_KEYS['SET_MP']}: Set MP Check Point")
+
     print(f"{SYSTEM_KEYS['START_STOP']}: Start/Stop")
+    print(f"{SYSTEM_KEYS['TOGGLE_JUMP']}: Toggle Jump")
     print("ESC: Quit")
     print("------------------------------------")
     
@@ -345,11 +378,11 @@ def main():
                 shift_count += 1
                 
                 # Every 2nd Shift, Jump (Space)
-                if shift_count % 2 == 0:
+                # Every 2nd Shift, Jump (Space)
+                if ENABLE_JUMP and shift_count % 2 == 0:
                      # Add a tiny delay so it registers as "Shift + Space" or "Shift then Space"
                     time.sleep(0.05)
-                    pyautogui.press('space')
-                    # print(" [Action] Jump!") 
+                    pyautogui.press('space') 
 
                 last_shift = now
             
@@ -360,25 +393,7 @@ def main():
                 pyautogui.press(KEYS['POTION_MP'])
                 last_potion = now
 
-            # 3. Lie Detector Check
-            if LIE_DETECTOR_POINT:
-                # Unpack
-                lx, ly, l_target_color = LIE_DETECTOR_POINT
-                try:
-                    # Check if the Lie Detector box appeared (Pixel matches what we saved)
-                    if colors_match(pyautogui.pixel(lx, ly), l_target_color, tolerance=5):
-                        print("\n[ALARM] LIE DETECTOR DETECTED! Pausing Bot...")
-                        RUNNING = False 
-                        
-                        # Play Sound Alarm (Mac specific)
-                        # Play 5 times to ensure attention
-                        for _ in range(5):
-                            os.system('afplay /System/Library/Sounds/Glass.aiff')
-                            time.sleep(0.5)
-                        
-                        print(" -> Bot PAUSED. Solve the Captcha, then press F8 to Resume.")
-                except Exception:
-                    pass
+
 
             # 4. Auto-Walk Logic
             if MINIMAP_REGION and PLAYER_DOT_COLOR and HOME_X is not None:

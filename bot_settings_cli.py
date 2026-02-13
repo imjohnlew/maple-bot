@@ -22,7 +22,7 @@ DEFAULTS = {
         "SET_HOME": "\\",
         "SET_HP": "-",
         "SET_MP": "=",
-        "SET_LIE": "0",
+
         "TOGGLE_MODE": "9"
     }
 }
@@ -65,24 +65,27 @@ def print_menu(config):
     print("1. Timers")
     print(f"   [1] Shift Interval: {config.get('SHIFT_INTERVAL')}s")
     print(f"   [2] Potion Interval: {config.get('POTION_INTERVAL')}s")
+    print(f"   [3] Jump Attack:     {'ON' if config.get('ENABLE_JUMP') else 'OFF'}")
+
     print("\n2. Movement")
-    print(f"   [3] Walk Tolerance: {config.get('WALK_TOLERANCE')} px")
+    print(f"   [4] Walk Tolerance: {config.get('WALK_TOLERANCE')} px")
     print("\n3. Game Keys")
     k = config.get('KEYS', {})
-    print(f"   [4] Shift/Attack: {k.get('SHIFT')}")
-    print(f"   [5] HP Potion:    {k.get('POTION_HP')}")
-    print(f"   [6] MP Potion:    {k.get('POTION_MP')}")
-    print(f"   [7] Left Key:     {k.get('LEFT')}")
-    print(f"   [8] Right Key:    {k.get('RIGHT')}")
+    print(f"   [5] Shift/Attack: {k.get('SHIFT')}")
+    print(f"   [6] HP Potion:    {k.get('POTION_HP')}")
+    print(f"   [7] MP Potion:    {k.get('POTION_MP')}")
+    print(f"   [8] Left Key:     {k.get('LEFT')}")
+    print(f"   [9] Right Key:    {k.get('RIGHT')}")
     print("\n4. System Hotkeys")
     s = config.get('SYSTEM_KEYS', {})
-    print(f"   [9] Start/Stop:   {s.get('START_STOP')}")
-    print(f"   [10] Set Minimap: {s.get('SET_MINIMAP')}")
-    print(f"   [11] Set Home:    {s.get('SET_HOME')}")
-    print(f"   [12] Set HP Pt:   {s.get('SET_HP')}")
-    print(f"   [13] Set MP Pt:   {s.get('SET_MP')}")
-    print(f"   [14] Set Lie Pt:  {s.get('SET_LIE')}")
-    print(f"   [15] Toggle Mode: {s.get('TOGGLE_MODE')}")
+    print(f"   [10] Start/Stop:   {s.get('START_STOP')}")
+    print(f"   [11] Toggle Jump:  {s.get('TOGGLE_JUMP')}")
+    print(f"   [12] Set Minimap:  {s.get('SET_MINIMAP')}")
+    print(f"   [13] Set Home:     {s.get('SET_HOME')}")
+    print(f"   [14] Set HP Pt:    {s.get('SET_HP')}")
+    print(f"   [15] Set MP Pt:    {s.get('SET_MP')}")
+    
+    print(f"   [16] Toggle Mode:  {s.get('TOGGLE_MODE')}")
     print("\n[Q] Quit")
 
 def edit_value(config, key, subkey=None, subsubkey=None):
@@ -125,22 +128,29 @@ def main():
         if choice == 'q':
             break
         
+        if choice == '3':
+            # Toggle Boolean directly
+            current = config.get('ENABLE_JUMP', False)
+            config['ENABLE_JUMP'] = not current
+            save_config(config)
+            continue
+
         mapping = {
             '1': ('SHIFT_INTERVAL', None),
             '2': ('POTION_INTERVAL', None),
-            '3': ('WALK_TOLERANCE', None),
-            '4': ('KEYS', 'SHIFT'),
-            '5': ('KEYS', 'POTION_HP'),
-            '6': ('KEYS', 'POTION_MP'),
-            '7': ('KEYS', 'LEFT'),
-            '8': ('KEYS', 'RIGHT'),
-            '9': ('SYSTEM_KEYS', 'START_STOP'),
-            '10': ('SYSTEM_KEYS', 'SET_MINIMAP'),
-            '11': ('SYSTEM_KEYS', 'SET_HOME'),
-            '12': ('SYSTEM_KEYS', 'SET_HP'),
-            '13': ('SYSTEM_KEYS', 'SET_MP'),
-            '14': ('SYSTEM_KEYS', 'SET_LIE'),
-            '15': ('SYSTEM_KEYS', 'TOGGLE_MODE'),
+            '4': ('WALK_TOLERANCE', None),
+            '5': ('KEYS', 'SHIFT'),
+            '6': ('KEYS', 'POTION_HP'),
+            '7': ('KEYS', 'POTION_MP'),
+            '8': ('KEYS', 'LEFT'),
+            '9': ('KEYS', 'RIGHT'),
+            '10': ('SYSTEM_KEYS', 'START_STOP'),
+            '11': ('SYSTEM_KEYS', 'TOGGLE_JUMP'),
+            '12': ('SYSTEM_KEYS', 'SET_MINIMAP'),
+            '13': ('SYSTEM_KEYS', 'SET_HOME'),
+            '14': ('SYSTEM_KEYS', 'SET_HP'),
+            '15': ('SYSTEM_KEYS', 'SET_MP'),
+            '16': ('SYSTEM_KEYS', 'TOGGLE_MODE'),
         }
 
         if choice in mapping:

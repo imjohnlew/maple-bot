@@ -32,8 +32,17 @@
             255
         ]
     ],
-    "POTION_MODE": "DANGER",
-    "ENABLE_JUMP": false,
+    "LIE_DETECTOR_POINT": [
+        1160,
+        829,
+        [
+            8,
+            8,
+            8,
+            255
+        ]
+    ],
+    "POTION_MODE": "SAFE",
     "SHIFT_INTERVAL": 0.5,
     "POTION_INTERVAL": 6.0,
     "WALK_TOLERANCE": 5,
@@ -46,11 +55,11 @@
     },
     "SYSTEM_KEYS": {
         "START_STOP": "[",
-        "TOGGLE_JUMP": "0",
         "SET_MINIMAP": "]",
         "SET_HOME": "\\",
         "SET_HP": "-",
         "SET_MP": "=",
+        "SET_LIE": "0",
         "TOGGLE_MODE": "9"
     }
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,7 +33,7 @@
             background-color: var(--surface-color);
             border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
         h1 {
@@ -106,7 +107,7 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(122, 162, 247, 0.4);
         }
-        
+
         .btn-save:active {
             transform: translateY(0);
         }
@@ -125,7 +126,7 @@
             transition: opacity 0.3s;
             pointer-events: none;
         }
-        
+
         .toast.show {
             opacity: 1;
         }
@@ -141,204 +142,218 @@
         input.key-input {
             width: 80px;
             font-family: monospace;
-            text-transform: lowercase; /* keys usually lower for py */
+            text-transform: lowercase;
+            /* keys usually lower for py */
         }
-        
+
         /* Grid specifically for keys */
         .keys-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* 2 columns */
-            gap: 15px; /* space between items */
+            grid-template-columns: 1fr 1fr;
+            /* 2 columns */
+            gap: 15px;
+            /* space between items */
         }
     </style>
 </head>
+
 <body>
 
-<div class="container">
-    <h1>Maple Bot Settings</h1>
+    <div class="container">
+        <h1>Maple Bot Settings</h1>
 
-    <div class="section">
-        <div class="section-title">Timers (Seconds)</div>
-        <div class="form-group">
-            <label>Shift Interval (Attack)</label>
-            <input type="number" step="0.1" id="SHIFT_INTERVAL">
+        <div class="section">
+            <div class="section-title">Timers (Seconds)</div>
+            <div class="form-group">
+                <label>Shift Interval (Attack)</label>
+                <input type="number" step="0.1" id="SHIFT_INTERVAL">
+            </div>
+            <div class="form-group">
+                <label>Potion Interval</label>
+                <input type="number" step="0.5" id="POTION_INTERVAL">
+            </div>
+            <div class="form-group">
+                <label>Enable Jump</label>
+                <input type="checkbox" id="ENABLE_JUMP" style="width: 20px; height: 20px;">
+            </div>
         </div>
-        <div class="form-group">
-            <label>Potion Interval</label>
-            <input type="number" step="0.5" id="POTION_INTERVAL">
+
+        <div class="section">
+            <div class="section-title">Movement</div>
+            <div class="form-group">
+                <label>Walk Tolerance (Pixels)</label>
+                <input type="number" step="1" id="WALK_TOLERANCE">
+            </div>
         </div>
+
+        <div class="section">
+            <div class="section-title">Game Keys</div>
+            <div class="keys-grid">
+                <div class="form-group">
+                    <label>Attack</label>
+                    <input type="text" class="key-input" id="KEY_SHIFT">
+                </div>
+                <div class="form-group">
+                    <label>HP Potion</label>
+                    <input type="text" class="key-input" id="KEY_POTION_HP">
+                </div>
+                <div class="form-group">
+                    <label>MP Potion</label>
+                    <input type="text" class="key-input" id="KEY_POTION_MP">
+                </div>
+                <div class="form-group">
+                    <label>Left</label>
+                    <input type="text" class="key-input" id="KEY_LEFT">
+                </div>
+                <div class="form-group">
+                    <label>Right</label>
+                    <input type="text" class="key-input" id="KEY_RIGHT">
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Command Keys</div>
+            <div class="keys-grid">
+                <div class="form-group">
+                    <label>Start/Stop</label>
+                    <input type="text" class="key-input" id="SYS_START_STOP">
+                </div>
+                <div class="form-group">
+                    <label>Toggle Jump</label>
+                    <input type="text" class="key-input" id="SYS_TOGGLE_JUMP">
+                </div>
+                <div class="form-group">
+                    <label>Set Minimap</label>
+                    <input type="text" class="key-input" id="SYS_SET_MINIMAP">
+                </div>
+                <div class="form-group">
+                    <label>Set Home</label>
+                    <input type="text" class="key-input" id="SYS_SET_HOME">
+                </div>
+                <div class="form-group">
+                    <label>Set HP Point</label>
+                    <input type="text" class="key-input" id="SYS_SET_HP">
+                </div>
+                <div class="form-group">
+                    <label>Set MP Point</label>
+                    <input type="text" class="key-input" id="SYS_SET_MP">
+                </div>
+
+                <div class="form-group">
+                    <label>Toggle Mode</label>
+                    <input type="text" class="key-input" id="SYS_TOGGLE_MODE">
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-save" onclick="saveConfig()">Save Changes</button>
+        <div class="note">Make sure the bot is running (`python maple_bot.py`) to see changes live.</div>
     </div>
 
-    <div class="section">
-        <div class="section-title">Movement</div>
-        <div class="form-group">
-            <label>Walk Tolerance (Pixels)</label>
-            <input type="number" step="1" id="WALK_TOLERANCE">
-        </div>
-    </div>
+    <div id="toast" class="toast">Settings Saved!</div>
 
-    <div class="section">
-        <div class="section-title">Game Keys</div>
-        <div class="keys-grid">
-            <div class="form-group">
-                <label>Attack</label>
-                <input type="text" class="key-input" id="KEY_SHIFT">
-            </div>
-            <div class="form-group">
-                <label>HP Potion</label>
-                <input type="text" class="key-input" id="KEY_POTION_HP">
-            </div>
-            <div class="form-group">
-                <label>MP Potion</label>
-                <input type="text" class="key-input" id="KEY_POTION_MP">
-            </div>
-            <div class="form-group">
-                <label>Left</label>
-                <input type="text" class="key-input" id="KEY_LEFT">
-            </div>
-            <div class="form-group">
-                <label>Right</label>
-                <input type="text" class="key-input" id="KEY_RIGHT">
-            </div>
-        </div>
-    </div>
+    <script>
+        let currentConfig = {};
 
-    <div class="section">
-        <div class="section-title">Command Keys</div>
-        <div class="keys-grid">
-            <div class="form-group">
-                <label>Start/Stop</label>
-                <input type="text" class="key-input" id="SYS_START_STOP">
-            </div>
-            <div class="form-group">
-                <label>Set Minimap</label>
-                <input type="text" class="key-input" id="SYS_SET_MINIMAP">
-            </div>
-            <div class="form-group">
-                <label>Set Home</label>
-                <input type="text" class="key-input" id="SYS_SET_HOME">
-            </div>
-            <div class="form-group">
-                 <label>Set HP Point</label>
-                <input type="text" class="key-input" id="SYS_SET_HP">
-            </div>
-             <div class="form-group">
-                 <label>Set MP Point</label>
-                <input type="text" class="key-input" id="SYS_SET_MP">
-            </div>
-            <div class="form-group">
-                 <label>Set Lie Detect</label>
-                <input type="text" class="key-input" id="SYS_SET_LIE">
-            </div>
-             <div class="form-group">
-                 <label>Toggle Mode</label>
-                <input type="text" class="key-input" id="SYS_TOGGLE_MODE">
-            </div>
-        </div>
-    </div>
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                currentConfig = data;
 
-    <button class="btn-save" onclick="saveConfig()">Save Changes</button>
-    <div class="note">Make sure the bot is running (`python maple_bot.py`) to see changes live.</div>
-</div>
+                // Fill basic fields
+                document.getElementById('SHIFT_INTERVAL').value = data.SHIFT_INTERVAL;
+                document.getElementById('POTION_INTERVAL').value = data.POTION_INTERVAL;
+                document.getElementById('ENABLE_JUMP').checked = data.ENABLE_JUMP ?? false;
+                document.getElementById('WALK_TOLERANCE').value = data.WALK_TOLERANCE;
 
-<div id="toast" class="toast">Settings Saved!</div>
+                // Fill Game Keys
+                if (data.KEYS) {
+                    document.getElementById('KEY_SHIFT').value = data.KEYS.SHIFT || '';
+                    document.getElementById('KEY_POTION_HP').value = data.KEYS.POTION_HP || '';
+                    document.getElementById('KEY_POTION_MP').value = data.KEYS.POTION_MP || '';
+                    document.getElementById('KEY_LEFT').value = data.KEYS.LEFT || '';
+                    document.getElementById('KEY_RIGHT').value = data.KEYS.RIGHT || '';
+                }
 
-<script>
-    let currentConfig = {};
+                // Fill System Keys
+                if (data.SYSTEM_KEYS) {
+                    document.getElementById('SYS_START_STOP').value = data.SYSTEM_KEYS.START_STOP || '';
+                    document.getElementById('SYS_TOGGLE_JUMP').value = data.SYSTEM_KEYS.TOGGLE_JUMP || '';
+                    document.getElementById('SYS_SET_MINIMAP').value = data.SYSTEM_KEYS.SET_MINIMAP || '';
+                    document.getElementById('SYS_SET_HOME').value = data.SYSTEM_KEYS.SET_HOME || '';
+                    document.getElementById('SYS_SET_HP').value = data.SYSTEM_KEYS.SET_HP || '';
+                    document.getElementById('SYS_SET_MP').value = data.SYSTEM_KEYS.SET_MP || '';
 
-    async function loadConfig() {
-        try {
-            const res = await fetch('/api/config');
-            const data = await res.json();
-            currentConfig = data;
+                    document.getElementById('SYS_TOGGLE_MODE').value = data.SYSTEM_KEYS.TOGGLE_MODE || '';
+                }
 
-            // Fill basic fields
-            document.getElementById('SHIFT_INTERVAL').value = data.SHIFT_INTERVAL;
-            document.getElementById('POTION_INTERVAL').value = data.POTION_INTERVAL;
-            document.getElementById('WALK_TOLERANCE').value = data.WALK_TOLERANCE;
-
-            // Fill Game Keys
-            if (data.KEYS) {
-                document.getElementById('KEY_SHIFT').value = data.KEYS.SHIFT || '';
-                document.getElementById('KEY_POTION_HP').value = data.KEYS.POTION_HP || '';
-                document.getElementById('KEY_POTION_MP').value = data.KEYS.POTION_MP || '';
-                document.getElementById('KEY_LEFT').value = data.KEYS.LEFT || '';
-                document.getElementById('KEY_RIGHT').value = data.KEYS.RIGHT || '';
+            } catch (e) {
+                console.error(e);
+                alert("Error loading settings. Ensure Python backend is running.");
             }
-
-            // Fill System Keys
-            if (data.SYSTEM_KEYS) {
-                document.getElementById('SYS_START_STOP').value = data.SYSTEM_KEYS.START_STOP || '';
-                document.getElementById('SYS_SET_MINIMAP').value = data.SYSTEM_KEYS.SET_MINIMAP || '';
-                document.getElementById('SYS_SET_HOME').value = data.SYSTEM_KEYS.SET_HOME || '';
-                document.getElementById('SYS_SET_HP').value = data.SYSTEM_KEYS.SET_HP || '';
-                document.getElementById('SYS_SET_MP').value = data.SYSTEM_KEYS.SET_MP || '';
-                document.getElementById('SYS_SET_LIE').value = data.SYSTEM_KEYS.SET_LIE || '';
-                document.getElementById('SYS_TOGGLE_MODE').value = data.SYSTEM_KEYS.TOGGLE_MODE || '';
-            }
-
-        } catch (e) {
-            console.error(e);
-            alert("Error loading settings. Ensure Python backend is running.");
         }
-    }
 
-    async function saveConfig() {
-        const newConfig = { ...currentConfig };
+        async function saveConfig() {
+            const newConfig = { ...currentConfig };
 
-        // Update values
-        newConfig.SHIFT_INTERVAL = parseFloat(document.getElementById('SHIFT_INTERVAL').value);
-        newConfig.POTION_INTERVAL = parseFloat(document.getElementById('POTION_INTERVAL').value);
-        newConfig.WALK_TOLERANCE = parseInt(document.getElementById('WALK_TOLERANCE').value);
+            // Update values
+            newConfig.SHIFT_INTERVAL = parseFloat(document.getElementById('SHIFT_INTERVAL').value);
+            newConfig.POTION_INTERVAL = parseFloat(document.getElementById('POTION_INTERVAL').value);
+            newConfig.ENABLE_JUMP = document.getElementById('ENABLE_JUMP').checked;
+            newConfig.WALK_TOLERANCE = parseInt(document.getElementById('WALK_TOLERANCE').value);
 
-        // Update Game Keys
-        newConfig.KEYS = {
-            SHIFT: document.getElementById('KEY_SHIFT').value,
-            POTION_HP: document.getElementById('KEY_POTION_HP').value,
-            POTION_MP: document.getElementById('KEY_POTION_MP').value,
-            LEFT: document.getElementById('KEY_LEFT').value,
-            RIGHT: document.getElementById('KEY_RIGHT').value
-        };
+            // Update Game Keys
+            newConfig.KEYS = {
+                SHIFT: document.getElementById('KEY_SHIFT').value,
+                POTION_HP: document.getElementById('KEY_POTION_HP').value,
+                POTION_MP: document.getElementById('KEY_POTION_MP').value,
+                LEFT: document.getElementById('KEY_LEFT').value,
+                RIGHT: document.getElementById('KEY_RIGHT').value
+            };
 
-        // Update System Keys
-        newConfig.SYSTEM_KEYS = {
-            START_STOP: document.getElementById('SYS_START_STOP').value,
-            SET_MINIMAP: document.getElementById('SYS_SET_MINIMAP').value,
-            SET_HOME: document.getElementById('SYS_SET_HOME').value,
-            SET_HP: document.getElementById('SYS_SET_HP').value,
-            SET_MP: document.getElementById('SYS_SET_MP').value,
-            SET_LIE: document.getElementById('SYS_SET_LIE').value,
-            TOGGLE_MODE: document.getElementById('SYS_TOGGLE_MODE').value
-        };
+            // Update System Keys
+            newConfig.SYSTEM_KEYS = {
+                START_STOP: document.getElementById('SYS_START_STOP').value,
+                TOGGLE_JUMP: document.getElementById('SYS_TOGGLE_JUMP').value,
+                SET_MINIMAP: document.getElementById('SYS_SET_MINIMAP').value,
+                SET_HOME: document.getElementById('SYS_SET_HOME').value,
+                SET_HP: document.getElementById('SYS_SET_HP').value,
+                SET_MP: document.getElementById('SYS_SET_MP').value,
 
-        try {
-            const res = await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newConfig)
-            });
-            const result = await res.json();
-            
-            if (result.status === 'success') {
-                showToast();
-            } else {
-                alert("Error saving: " + result.message);
+                TOGGLE_MODE: document.getElementById('SYS_TOGGLE_MODE').value
+            };
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newConfig)
+                });
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    showToast();
+                } else {
+                    alert("Error saving: " + result.message);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Failed to save settings.");
             }
-        } catch (e) {
-            console.error(e);
-            alert("Failed to save settings.");
         }
-    }
 
-    function showToast() {
-        const toast = document.getElementById('toast');
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 2000);
-    }
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
 
-    // Load on start
-    loadConfig();
-</script>
+        // Load on start
+        loadConfig();
+    </script>
 
 </body>
+
 </html>

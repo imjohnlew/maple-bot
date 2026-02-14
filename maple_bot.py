@@ -7,8 +7,9 @@ import os
 CONFIG_FILE = "bot_config_v2.json"
 
 # --- Configuration State ---
-# Blind Mode Timers
-SHIFT_INTERVAL = 0.5
+# --- Configuration State ---
+CUSTOM_TASKS = []
+SHIFT_INTERVAL = 0.5 # Kept for default/fallback
 POTION_INTERVAL = 5.0
 
 # Disable FailSafe (User can use ESC to quit)
@@ -116,8 +117,23 @@ def load_config():
                 if 'KEYS' in data: KEYS.update(data['KEYS'])
                 if 'SYSTEM_KEYS' in data: SYSTEM_KEYS.update(data['SYSTEM_KEYS'])
 
+                # Load or Migrate Tasks
+                if 'CUSTOM_TASKS' in data:
+                    CUSTOM_TASKS = data['CUSTOM_TASKS']
+                    for t in CUSTOM_TASKS: t['last_run'] = 0
+                else:
+                    # Migration from old format (CLI load doesn't save back immediately, but will use it)
+                    CUSTOM_TASKS = []
+                    if 'SHIFT_INTERVAL' in data:
+                        CUSTOM_TASKS.append({'key': KEYS.get('SHIFT', 'shift'), 'interval': float(data['SHIFT_INTERVAL']), 'enabled': True, 'last_run': 0})
+                    if 'POTION_INTERVAL' in data:
+                        CUSTOM_TASKS.append({'key': KEYS.get('POTION_HP', ';'), 'interval': float(data['POTION_INTERVAL']), 'enabled': True, 'last_run': 0})
+                        CUSTOM_TASKS.append({'key': KEYS.get('POTION_MP', 'l'), 'interval': float(data['POTION_INTERVAL']), 'enabled': True, 'last_run': 0})
+                    if 'D_INTERVAL' in data:
+                        CUSTOM_TASKS.append({'key': 'd', 'interval': float(data['D_INTERVAL']), 'enabled': True, 'last_run': 0})
+
             print(f"[Config] Loaded: Minimap={bool(MINIMAP_REGION)}, HomeX={HOME_X}")
-            print(f"[Config] Intervals: Shift={SHIFT_INTERVAL}s, Potion={POTION_INTERVAL}s")
+            print(f"[Config] Loaded {len(CUSTOM_TASKS)} custom tasks.")
             print(f"[Config] Control Keys: Start=[{SYSTEM_KEYS['START_STOP']}] Minimap=[{SYSTEM_KEYS['SET_MINIMAP']}]")
         except Exception as e:
             print(f"[Config] Load failed: {e}")
@@ -372,26 +388,27 @@ def main():
         if RUNNING:
             now = current_time
 
-            # 1. Blind Key Presses (Shift / Attack)
-            if now - last_shift >= SHIFT_INTERVAL:
-                pyautogui.press(KEYS['SHIFT'])
-                shift_count += 1
+            # 1. Generic Task Loop
+            for task in CUSTOM_TASKS:
+                if not task.get('enabled', True): continue
                 
-                # Every 2nd Shift, Jump (Space)
-                # Every 2nd Shift, Jump (Space)
-                if ENABLE_JUMP and shift_count % 2 == 0:
-                     # Add a tiny delay so it registers as "Shift + Space" or "Shift then Space"
-                    time.sleep(0.05)
-                    pyautogui.press('space') 
+                key = task['key']
+                interval = task['interval']
+                last = task.get('last_run', 0)
+                
+                if now - last >= interval:
+                    # Handle multiple keys if comma separated? For now basic support
+                    if key.lower() == 'shift':
+                         pyautogui.press(key) # Shift often needs explicit handling if not using pynput everywhere, but pyautogui handles 'shift'
+                    else:
+                         pyautogui.press(key)
+                    
+                    # Special case: Jump if legacy condition met? 
+                    if key == KEYS['SHIFT'] and ENABLE_JUMP:
+                         time.sleep(0.05)
+                         pyautogui.press('space')
 
-                last_shift = now
-            
-            # --- TIMER POTION LOGIC (Simple & Reliable) ---
-            if now - last_potion >= POTION_INTERVAL:
-                print(" [Timer] Potions (; and l)")
-                pyautogui.press(KEYS['POTION_HP']) 
-                pyautogui.press(KEYS['POTION_MP'])
-                last_potion = now
+                    task['last_run'] = now
 
 
 

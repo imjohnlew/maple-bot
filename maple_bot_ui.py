@@ -8,12 +8,12 @@ import os
 from pynput import keyboard
 
 # --- Copied/Adapted from maple_bot.py ---
-CONFIG_FILE = "bot_config_v2.json"
+# Determine absolute path for config to ensure persistence works regardless of CWD
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, "bot_config_v2.json")
 
 # Defaults
-SHIFT_INTERVAL = 0.5
-POTION_INTERVAL = 5.0
-D_INTERVAL = 120.0
+CUSTOM_TASKS = [] # List of dicts: {'key': 'a', 'interval': 1.0, 'enabled': True, 'last_run': 0}
 WALK_TOLERANCE = 5
 POTION_MODE = "SAFE"
 ENABLE_JUMP = False
@@ -47,7 +47,7 @@ MINIMAP_START_POS = None
 
 def load_config():
     global MINIMAP_REGION, PLAYER_DOT_COLOR, HOME_X, HP_CHECK_POINT, MP_CHECK_POINT, POTION_MODE, ENABLE_JUMP
-    global SHIFT_INTERVAL, POTION_INTERVAL, D_INTERVAL, WALK_TOLERANCE, KEYS, SYSTEM_KEYS
+    global CUSTOM_TASKS, WALK_TOLERANCE, KEYS, SYSTEM_KEYS
     
     if os.path.exists(CONFIG_FILE):
         try:
@@ -66,16 +66,41 @@ def load_config():
                 if 'POTION_MODE' in data: POTION_MODE = data['POTION_MODE']
                 if 'ENABLE_JUMP' in data: ENABLE_JUMP = bool(data['ENABLE_JUMP'])
                 
-                if 'SHIFT_INTERVAL' in data: SHIFT_INTERVAL = float(data['SHIFT_INTERVAL'])
-                if 'POTION_INTERVAL' in data: POTION_INTERVAL = float(data['POTION_INTERVAL'])
-                if 'D_INTERVAL' in data: D_INTERVAL = float(data['D_INTERVAL'])
                 if 'WALK_TOLERANCE' in data: WALK_TOLERANCE = int(data['WALK_TOLERANCE'])
                 if 'KEYS' in data: KEYS.update(data['KEYS'])
                 if 'SYSTEM_KEYS' in data: SYSTEM_KEYS.update(data['SYSTEM_KEYS'])
+
+                # Load or Migrate Tasks
+                if 'CUSTOM_TASKS' in data:
+                    CUSTOM_TASKS = data['CUSTOM_TASKS']
+                    # Reset last_run for safety
+                    for t in CUSTOM_TASKS: t['last_run'] = 0
+                else:
+                    # Migration from old format
+                    print("Migrating old config to CUSTOM_TASKS...")
+                    CUSTOM_TASKS = []
+                    if 'SHIFT_INTERVAL' in data:
+                        CUSTOM_TASKS.append({'key': KEYS.get('SHIFT', 'shift'), 'interval': float(data['SHIFT_INTERVAL']), 'enabled': True, 'last_run': 0})
+                    if 'POTION_INTERVAL' in data:
+                        CUSTOM_TASKS.append({'key': KEYS.get('POTION_HP', ';'), 'interval': float(data['POTION_INTERVAL']), 'enabled': True, 'last_run': 0})
+                        CUSTOM_TASKS.append({'key': KEYS.get('POTION_MP', 'l'), 'interval': float(data['POTION_INTERVAL']), 'enabled': True, 'last_run': 0})
+                    if 'D_INTERVAL' in data:
+                        CUSTOM_TASKS.append({'key': 'd', 'interval': float(data['D_INTERVAL']), 'enabled': True, 'last_run': 0})
+
         except Exception as e:
             print(f"Config Load Error: {e}")
 
 def save_config():
+    # Clean tasks for saving (remove runtime keys like last_run if we wanted, but keeping them is fine/harmless or reset them)
+    # We'll valid keys only
+    tasks_to_save = []
+    for t in CUSTOM_TASKS:
+        tasks_to_save.append({
+            'key': t['key'],
+            'interval': t['interval'],
+            'enabled': t.get('enabled', True)
+        })
+
     data = {
         'MINIMAP_REGION': MINIMAP_REGION,
         'PLAYER_DOT_COLOR': PLAYER_DOT_COLOR,
@@ -84,12 +109,10 @@ def save_config():
         'MP_CHECK_POINT': MP_CHECK_POINT,
         'POTION_MODE': POTION_MODE,
         'ENABLE_JUMP': ENABLE_JUMP,
-        'SHIFT_INTERVAL': SHIFT_INTERVAL,
-        'POTION_INTERVAL': POTION_INTERVAL,
-        'D_INTERVAL': D_INTERVAL,
         'WALK_TOLERANCE': WALK_TOLERANCE,
         'KEYS': KEYS,
-        'SYSTEM_KEYS': SYSTEM_KEYS
+        'SYSTEM_KEYS': SYSTEM_KEYS,
+        'CUSTOM_TASKS': tasks_to_save
     }
     try:
         with open(CONFIG_FILE, 'w') as f:
@@ -127,7 +150,7 @@ class MapleBotApp:
     def __init__(self, root):
         self.root = root
         self.root.title("MapleBot")
-        self.root.geometry("250x380") # Increased height manually
+        self.root.geometry("360x600") # Increased width and height for better layout
         
         # Position Top Left or similar
         self.root.geometry("+50+50")
@@ -160,43 +183,81 @@ class MapleBotApp:
         self.btn_run = tk.Button(self.root, text="Start Bot", command=self.toggle_running, bg="#2ecc71", fg="black")
         self.btn_run.pack(fill=tk.X, padx=20, pady=5)
         
-        # --- Config Entries ---
-        frm_cfg = tk.Frame(self.root, bg="#222")
-        frm_cfg.pack(fill=tk.X, padx=10, pady=5)
+        # --- Task List (Treeview) ---
+        frm_list = tk.Frame(self.root, bg="#222")
+        frm_list.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        def add_entry(label, default_val, var_name):
-            f = tk.Frame(frm_cfg, bg="#222")
-            f.pack(fill=tk.X, pady=2)
-            tk.Label(f, text=label, fg="white", bg="#222", width=10, anchor="w").pack(side=tk.LEFT)
-            var = tk.StringVar(value=str(default_val))
-            e = tk.Entry(f, textvariable=var, width=8, bg="#333", fg="white", insertbackground="white")
-            e.pack(side=tk.RIGHT)
-            
-            # Trace changes to update globals
-            def on_change(*args):
-                try:
-                    val = float(var.get())
-                    globals()[var_name] = val
-                    save_config()
-                except: pass
-            var.trace_add("write", on_change)
-            return var
+        tk.Label(frm_list, text="Key Intervals", fg="white", bg="#222").pack(anchor="w")
 
-        add_entry("Shift (s):", SHIFT_INTERVAL, "SHIFT_INTERVAL")
-        add_entry("Potion (s):", POTION_INTERVAL, "POTION_INTERVAL")
-        add_entry("Press D (s):", D_INTERVAL, "D_INTERVAL")
+        # Treeview
+        columns = ("key", "interval")
+        self.tree = ttk.Treeview(frm_list, columns=columns, show="headings", height=6)
+        self.tree.heading("key", text="Key")
+        self.tree.column("key", width=60)
+        self.tree.heading("interval", text="Secs")
+        self.tree.column("interval", width=60)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(frm_list, orient=tk.VERTICAL, command=self.tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.configure(yscroll=scrollbar.set)
+
+        # Delete Button (Contextual or below)
+        
+        # --- Add/Edit Task Section ---
+        frm_add = tk.Frame(self.root, bg="#222")
+        frm_add.pack(fill=tk.X, padx=10, pady=5)
+        
+        # Row 1: Inputs
+        row1 = tk.Frame(frm_add, bg="#222")
+        row1.pack(fill=tk.X, pady=2)
+        
+        tk.Label(row1, text="Key:", fg="white", bg="#222", width=5).pack(side=tk.LEFT)
+        self.ent_key = tk.Entry(row1, width=8, bg="#333", fg="white")
+        self.ent_key.pack(side=tk.LEFT, padx=5)
+        
+        tk.Label(row1, text="Sec:", fg="white", bg="#222", width=5).pack(side=tk.LEFT)
+        self.ent_int = tk.Entry(row1, width=8, bg="#333", fg="white")
+        self.ent_int.pack(side=tk.LEFT, padx=5)
+        
+        # Row 2: Buttons
+        row2 = tk.Frame(frm_add, bg="#222")
+        row2.pack(fill=tk.X, pady=5)
+        
+        # Use frames or pack options to distribute buttons evenly
+        btn_add = tk.Button(row2, text="Add", command=self.add_task, bg="#2ecc71", fg="black", width=6)
+        btn_add.pack(side=tk.LEFT, padx=2)
+
+        btn_upd = tk.Button(row2, text="Update", command=self.update_task, bg="#3498db", fg="black", width=6)
+        btn_upd.pack(side=tk.LEFT, padx=2)
+
+        btn_del = tk.Button(row2, text="Delete", command=self.delete_task, bg="#e74c3c", fg="black", width=6)
+        btn_del.pack(side=tk.LEFT, padx=2)
+
+        # Bind Box Selection
+        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
+
+        self.refresh_task_list()
 
         # Sub-status
         self.info_var = tk.StringVar(value="Waiting...")
         tk.Label(self.root, textvariable=self.info_var, fg="#aaa", bg="#222", font=("Helvetica", 10)).pack(pady=2)
 
-        # Controls Grid
-        frm = tk.Frame(self.root, bg="#222")
-        frm.pack(fill=tk.BOTH, expand=True, padx=10)
+        # Controls Grid (Shortcuts)
+        frm_controls_header = tk.Frame(self.root, bg="#222")
+        frm_controls_header.pack(fill=tk.X, padx=10, pady=(10, 5))
+
+        self.btn_toggle_shortcuts = tk.Button(frm_controls_header, text="Hide Shortcuts [-]", command=self.toggle_shortcuts, 
+                                              bg="#444", fg="white", relief=tk.FLAT, font=("Helvetica", 10))
+        self.btn_toggle_shortcuts.pack(fill=tk.X)
+
+        self.frm_shortcuts = tk.Frame(self.root, bg="#222")
+        self.frm_shortcuts.pack(fill=tk.BOTH, expand=True, padx=10)
         
         # Helper to make label rows
         def row(txt, key):
-            f = tk.Frame(frm, bg="#222")
+            f = tk.Frame(self.frm_shortcuts, bg="#222")
             f.pack(fill=tk.X, pady=2)
             tk.Label(f, text=txt, fg="white", bg="#222", width=15, anchor="w").pack(side=tk.LEFT)
             tk.Label(f, text=f"[{key}]", fg="#eea", bg="#222", font=("Courier", 10, "bold")).pack(side=tk.RIGHT)
@@ -208,6 +269,76 @@ class MapleBotApp:
         row("Set HP Pt", SYSTEM_KEYS['SET_HP'])
         row("Set MP Pt", SYSTEM_KEYS['SET_MP'])
         row("Toggle Mode", SYSTEM_KEYS['TOGGLE_MODE'])
+
+    def refresh_task_list(self):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        for task in CUSTOM_TASKS:
+            self.tree.insert("", tk.END, values=(task['key'], task['interval']))
+
+    def on_tree_select(self, event):
+        selected_items = self.tree.selection()
+        if selected_items:
+            item = self.tree.item(selected_items[0])
+            vals = item['values']
+            if vals:
+                self.ent_key.delete(0, tk.END)
+                self.ent_key.insert(0, str(vals[0]))
+                self.ent_int.delete(0, tk.END)
+                self.ent_int.insert(0, str(vals[1]))
+
+    def add_task(self):
+        k = self.ent_key.get().strip()
+        i = self.ent_int.get().strip()
+        if k and i:
+            try:
+                interval = float(i)
+                CUSTOM_TASKS.append({'key': k, 'interval': interval, 'enabled': True, 'last_run': 0})
+                save_config()
+                self.refresh_task_list()
+                # self.ent_key.delete(0, tk.END) # Keep values for easy rapid entry or modification
+                # self.ent_int.delete(0, tk.END)
+            except ValueError:
+                pass
+
+    def update_task(self):
+        selected_items = self.tree.selection()
+        if not selected_items: return
+        
+        k = self.ent_key.get().strip()
+        i = self.ent_int.get().strip()
+        if k and i:
+            try:
+                interval = float(i)
+                item_id = selected_items[0]
+                index = self.tree.index(item_id)
+                
+                if 0 <= index < len(CUSTOM_TASKS):
+                    CUSTOM_TASKS[index]['key'] = k
+                    CUSTOM_TASKS[index]['interval'] = interval
+                    save_config()
+                    self.refresh_task_list()
+            except ValueError:
+                pass
+
+    def delete_task(self):
+        selected_items = self.tree.selection()
+        if selected_items:
+            # Get index of the first selected item
+            item_id = selected_items[0]
+            index = self.tree.index(item_id)
+            if 0 <= index < len(CUSTOM_TASKS):
+                CUSTOM_TASKS.pop(index)
+                save_config()
+                self.refresh_task_list()
+
+    def toggle_shortcuts(self):
+        if self.frm_shortcuts.winfo_viewable():
+            self.frm_shortcuts.pack_forget()
+            self.btn_toggle_shortcuts.config(text="Show Shortcuts [+]")
+        else:
+            self.frm_shortcuts.pack(fill=tk.BOTH, expand=True, padx=10)
+            self.btn_toggle_shortcuts.config(text="Hide Shortcuts [-]")
         
     def toggle_running(self):
         global RUNNING
@@ -311,9 +442,8 @@ class MapleBotApp:
             listener.join()
 
     def bot_loop(self):
-        last_shift = 0
-        last_potion = 0
-        last_d = 0
+        # Local state is less relevant now as we store last_run in CUSTOM_TASKS
+        holding_key = None
         shift_count = 0
         holding_key = None
         
@@ -328,25 +458,29 @@ class MapleBotApp:
             now = time.time()
             
             try:
-                # 1. Shift/Attack
-                if now - last_shift >= SHIFT_INTERVAL:
-                    pyautogui.press(KEYS['SHIFT'])
-                    shift_count += 1
-                    if ENABLE_JUMP and shift_count % 2 == 0:
-                        time.sleep(0.05)
-                        pyautogui.press('space')
-                    last_shift = now
+                # 1. Generic Task Loop
+                for task in CUSTOM_TASKS:
+                    if not task.get('enabled', True): continue
                     
-                # 2. Potion (Timer)
-                if now - last_potion >= POTION_INTERVAL:
-                    pyautogui.press(KEYS['POTION_HP']) 
-                    pyautogui.press(KEYS['POTION_MP'])
-                    last_potion = now
-                
-                # 3. Press D (Timer)
-                if now - last_d >= D_INTERVAL:
-                    pyautogui.press('d')
-                    last_d = now
+                    key = task['key']
+                    interval = task['interval']
+                    last = task.get('last_run', 0)
+                    
+                    if now - last >= interval:
+                        # Handle multiple keys if comma separated? For now basic support
+                        pyautogui.press(key)
+                        
+                        # Special case: Jump if legacy condition met? 
+                        # We'll just stick to the generic 'space' task if user wants it.
+                        # But for backward compatibility with 'ENABLE_JUMP' which does Shift+Jump:
+                        if key == KEYS['SHIFT'] and ENABLE_JUMP:
+                             # This is a bit hacky, but keeps specific "Jump Attack" logic if the key matches 'shift'
+                             # Alternatively, the user should just add 'space' as a task with same interval.
+                             # But 'Jump' usually means 'Shift' then 'Space' immediately.
+                             time.sleep(0.05)
+                             pyautogui.press('space')
+
+                        task['last_run'] = now
                     
                 # 3. Auto Walk
                 if MINIMAP_REGION and PLAYER_DOT_COLOR and HOME_X is not None:

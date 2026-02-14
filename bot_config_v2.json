@@ -34,8 +34,6 @@
     ],
     "POTION_MODE": "DANGER",
     "ENABLE_JUMP": false,
-    "SHIFT_INTERVAL": 0.5,
-    "POTION_INTERVAL": 6.0,
     "WALK_TOLERANCE": 5,
     "KEYS": {
         "SHIFT": "shift",
@@ -52,5 +50,32 @@
         "SET_HP": "-",
         "SET_MP": "=",
         "TOGGLE_MODE": "9"
-    }
+    },
+    "CUSTOM_TASKS": [
+        {
+            "key": "shift",
+            "interval": 0.5,
+            "enabled": true
+        },
+        {
+            "key": ";",
+            "interval": 6.0,
+            "enabled": true
+        },
+        {
+            "key": "l",
+            "interval": 6.0,
+            "enabled": true
+        },
+        {
+            "key": "a",
+            "interval": 4.0,
+            "enabled": true
+        },
+        {
+            "key": "l",
+            "interval": 1.0,
+            "enabled": true
+        }
+    ]
 }
